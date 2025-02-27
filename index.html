@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberReconX - OSINT Reconnaissance Toolkit</title>
+    <!-- Tailwind CSS and Flowbite CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet" />
+    <!-- FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #5D5CDE;
+            --text-light: #E1E1E1;
+            --background-light: #FFFFFF;
+            --background-dark: #181818;
+            --card-light: #F5F5F5;
+            --card-dark: #232323;
+            --terminal-bg: #1E1E2E;
+            --terminal-text: #A9FEF7;
+            --danger-color: #FF5555;
+            --success-color: #50FA7B;
+            --warning-color: #FFB86C;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .dark\:custom-text {
+                color: var(--text-light);
+            }
+            .dark\:custom-bg {
+                background-color: var(--background-dark);
+            }
+            .dark\:card-bg {
+                background-color: var(--card-dark);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .light\:custom-text {
+                color: #2D3748;
+            }
+            .light\:custom-bg {
+                background-color: var(--background-light);
+            }
+            .light\:card-bg {
+                background-color: var(--card-light);
+            }
+        }
+
+        .terminal {
+            background-color: var(--terminal-bg);
+            color: var(--terminal-text);
+            font-family: 'Courier New', monospace;
+            height: 300px;
+            overflow-y: auto;
+            padding: 12px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .terminal::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .terminal::-webkit-scrollbar-track {
+            background: #2c2c3a;
+        }
+        
+        .terminal::-webkit-scrollbar-thumb {
+            background-color: #5D5CDE;
+            border-radius: 4px;
+        }
+
+        .progress-indicator {
+            height: 4px;
+            background-color: #3a3a4f;
+            position: relative;
+            margin: 10px 0;
+            overflow: hidden;
+            border-radius: 2px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .module-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .module-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .attack-surface-map {
+            height: 400px;
+            background-color: rgba(93, 92, 222, 0.1);
+            border-radius: 8px;
+            display: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .map-container {
+            position: relative;
+            height: 100%;
+            width: 100%;
+        }
+
+        .map-node {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 10;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .map-node:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .map-node.vulnerable {
+            background-color: var(--danger-color);
+        }
+
+        .map-node.service {
+            background-color: var(--success-color);
+        }
+
+        .map-node.domain {
+            background-color: var(--warning-color);
+        }
+
+        .map-line {
+            position: absolute;
+            background-color: rgba(93, 92, 222, 0.3);
+            transform-origin: 0 0;
+            z-index: 5;
+        }
+
+        /* Blinking cursor animation */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background-color: var(--terminal-text);
+            margin-left: 2px;
+            animation: blink 1s infinite;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: var(--danger-color);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+        }
+
+        .results-container {
+            display: none;
+            overflow: hidden;
+            transition: height 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="light:custom-bg dark:custom-bg light:custom-text dark:custom-text min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header Section -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8">
+            <div class="flex items-center mb-4 md:mb-0">
+                <i class="fas fa-shield-alt text-4xl text-[#5D5CDE] mr-3"></i>
+                <div>
+                    <h1 class="text-3xl font-bold">CyberReconX</h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Ultimate OSINT Reconnaissance & Attack Surface Mapping Toolkit</p>
+                </div>
+            </div>
+            <div class="flex items-center">
+                <a href="#" id="github-link" class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-4 py-2 rounded-md mr-2 transition duration-200">
+                    <i class="fab fa-github mr-2"></i>GitHub
+                </a>
+                <a href="#" id="support-link" class="bg-[#5D5CDE] hover:bg-[#4B4AB2] text-white px-4 py-2 rounded-md transition duration-200">
+                    <i class="fas fa-mug-hot mr-2"></i>Support Project
+                </a>
+            </div>
+        </div>
+
+        <!-- Main Controls -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="col-span-1 md:col-span-2">
+                <div class="light:card-bg dark:card-bg p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-bold mb-4">Target Configuration</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="target-domain" class="block text-sm font-medium mb-1">Target Domain or IP</label>
+                            <input type="text" id="target-domain" placeholder="example.com or 192.168.1.1" class="w-full text-base rounded-md bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 focus:border-[#5D5CDE] focus:ring-[#5D5CDE]">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="scan-depth" class="block text-sm font-medium mb-1">Scan Depth</label>
+                                <select id="scan-depth" class="w-full text-base rounded-md bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 focus:border-[#5D5CDE] focus:ring-[#5D5CDE]">
+                                    <option value="1">Quick Scan</option>
+                                    <option value="2" selected>Standard Scan</option>
+                                    <option value="3">Deep Scan</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="scan-mode" class="block text-sm font-medium mb-1">Scan Mode</label>
+                                <select id="scan-mode" class="w-full text-base rounded-md bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 focus:border-[#5D5CDE] focus:ring-[#5D5CDE]">
+                                    <option value="passive">Passive (OSINT Only)</option>
+                                    <option value="active" selected>Active (OSINT + Enumeration)</option>
+                                    <option value="aggressive">Aggressive (Full Recon)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-span-1">
+                <div class="light:card-bg dark:card-bg p-6 rounded-lg shadow-md h-full flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-xl font-bold mb-4">Scan Control</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Configure and launch your reconnaissance scan.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <button id="start-scan-btn" class="w-full bg-[#5D5CDE] hover:bg-[#4B4AB2] text-white px-4 py-3 rounded-md font-medium transition duration-200">
+                            <i class="fas fa-play mr-2"></i>Start Reconnaissance
+                        </button>
+                        <button id="stop-scan-btn" class="w-full border border-[#5D5CDE] text-[#5D5CDE] hover:bg-gray-100 dark:hover:bg-gray-700 px-4 py-3 rounded-md font-medium transition duration-200 hidden">
+                            <i class="fas fa-stop mr-2"></i>Stop Scan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Module Selection -->
+        <div class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Reconnaissance Modules</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div class="module-card light:card-bg dark:card-bg p-4 rounded-lg shadow-md cursor-pointer border-l-4 border-[#5D5CDE] relative" data-module="osint">
+                    <div class="notification-badge">7</div>
+                    <i class="fas fa-search text-2xl text-[#5D5CDE] mb-2"></i>
+                    <h3 class="font-medium">OSINT Collection</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">50+ sources</p>
+                </div>
+                <div class="module-card light:card-bg dark:card-bg p-4 rounded-lg shadow-md cursor-pointer border-l-4 border-[#5D5CDE]" data-module="subdomain">
+                    <i class="fas fa-sitemap text-2xl text-[#5D5CDE] mb-2"></i>
+                    <h3 class="font-medium">Subdomain Enum</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Find all assets</p>
+                </div>
+                <div class="module-card light:card-bg dark:card-bg p-4 rounded-lg shadow-md cursor-pointer border-l-4 border-[#5D5CDE]" data-module="dark-web">
+                    <i class="fas fa-user-secret text-2xl text-[#5D5CDE] mb-2"></i>
+                    <h3 class="font-medium">Dark Web Lookup</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Breach detection</p>
+                </div>
+                <div class="module-card light:card-bg dark:card-bg p-4 rounded-lg shadow-md cursor-pointer border-l-4 border-[#5D5CDE]" data-module="username">
+                    <i class="fas fa-user-tag text-2xl text-[#5D5CDE] mb-2"></i>
+                    <h3 class="font-medium">Username Enum</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">200+ platforms</p>
+                </div>
+                <div class="module-card light:card-bg dark:card-bg p-4 rounded-lg shadow-md cursor-pointer border-l-4 border-[#5D5CDE]" data-module="port-scan">
+                    <i class="fas fa-network-wired text-2xl text-[#5D5CDE] mb-2"></i>
+                    <h3 class="font-medium">Port Scanning</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Service detection</p>
+                </div>
+                <div class="module-card light:card-bg dark:card-bg p-4 rounded-lg shadow-md cursor-pointer border-l-4 border-[#5D5CDE]" data-module="phishing">
+                    <i class="fas fa-fishing-hook text-2xl text-[#5D5CDE] mb-2"></i>
+                    <h3 class="font-medium">Phishing Analysis</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Risk assessment</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Output -->
+        <div class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Reconnaissance Output</h2>
+                <div class="flex space-x-2">
+                    <button id="clear-terminal-btn" class="text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-3 py-1 rounded transition duration-200">
+                        <i class="fas fa-broom mr-1"></i>Clear
+                    </button>
+                    <button id="export-results-btn" class="text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-3 py-1 rounded transition duration-200">
+                        <i class="fas fa-download mr-1"></i>Export
+                    </button>
+                </div>
+            </div>
+            <div class="terminal">
+                <div id="terminal-content">
+CyberReconX v1.0.3 - Ultimate OSINT Reconnaissance & Attack Surface Mapping Toolkit
+----------------------------------------------------------------------------------
+[*] Initializing CyberReconX toolkit...
+[*] Loaded 6 reconnaissance modules
+[*] Loaded 50+ OSINT data sources
+[*] Ready to start reconnaissance
+[*] Enter a target domain or IP address and press 'Start Reconnaissance'
+                </div>
+                <span class="cursor"></span>
+            </div>
+            <div id="progress-container" class="mt-4 hidden">
+                <div class="flex justify-between items-center mb-1">
+                    <span id="current-module">Initializing scan...</span>
+                    <span id="progress-percentage">0%</span>
+                </div>
+                <div class="progress-indicator">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section (Hidden until scan completes) -->
+        <div id="results-section" class="results-container">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Reconnaissance Results</h2>
+                <div class="space-x-2">
+                    <button id="show-map-btn" class="text-sm bg-[#5D5CDE] hover:bg-[#4B4AB2] text-white px-3 py-1 rounded transition duration-200">
+                        <i class="fas fa-project-diagram mr-1"></i>Attack Surface Map
+                    </button>
+                    <button id="generate-report-btn" class="text-sm bg-[#5D5CDE] hover:bg-[#4B4AB2] text-white px-3 py-1 rounded transition duration-200">
+                        <i class="fas fa-file-alt mr-1"></i>Generate Report
+                    </button>
+                </div>
+            </div>
+
+            <!-- Attack Surface Map -->
+            <div id="attack-surface-map" class="attack-surface-map mb-8">
+                <div class="map-container" id="map-container">
+                    <!-- Map nodes and connections will be added here dynamically -->
+                </div>
+                <div class="absolute bottom-2 right-2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-70">
+                    <i class="fas fa-info-circle mr-1"></i> Interactive Attack Surface Map
+                </div>
+            </div>
+
+            <!-- Results Tabs -->
+            <div class="mb-8">
+                <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
+                    <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="results-tabs" role="tablist">
+                        <li class="mr-2" role="presentation">
+                            <button class="inline-block p-4 border-b-2 rounded-t-lg border-[#5D5CDE]" id="domains-tab" data-tabs-target="#domains-content" type="button" role="tab" aria-controls="domains" aria-selected="true">
+                                <i class="fas fa-globe mr-2"></i>Domains & Subdomains
+                            </button>
+                        </li>
+                        <li class="mr-2" role="presentation">
+                            <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300" id="vulnerabilities-tab" data-tabs-target="#vulnerabilities-content" type="button" role="tab" aria-controls="vulnerabilities" aria-selected="false">
+                                <i class="fas fa-bug mr-2"></i>Potential Vulnerabilities
+                            </button>
+                        </li>
+                        <li class="mr-2" role="presentation">
+                            <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300" id="emails-tab" data-tabs-target="#emails-content" type="button" role="tab" aria-controls="emails" aria-selected="false">
+                                <i class="fas fa-envelope mr-2"></i>Emails & Accounts
+                            </button>
+                        </li>
+                        <li role="presentation">
+                            <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300" id="technologies-tab" data-tabs-target="#technologies-content" type="button" role="tab" aria-controls="technologies" aria-selected="false">
+                                <i class="fas fa-code mr-2"></i>Technologies
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div id="results-content">
+                    <div class="p-4 rounded-lg light:card-bg dark:card-bg" id="domains-content" role="tabpanel" aria-labelledby="domains-tab">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3">Subdomain</th>
+                                        <th scope="col" class="px-6 py-3">IP Address</th>
+                                        <th scope="col" class="px-6 py-3">Status</th>
+                                        <th scope="col" class="px-6 py-3">Open Ports</th>
+                                        <th scope="col" class="px-6 py-3">Technologies</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="domains-table-body">
+                                    <!-- Domain data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="hidden p-4 rounded-lg light:card-bg dark:card-bg" id="vulnerabilities-content" role="tabpanel" aria-labelledby="vulnerabilities-tab">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3">Vulnerability</th>
+                                        <th scope="col" class="px-6 py-3">Severity</th>
+                                        <th scope="col" class="px-6 py-3">Affected Asset</th>
+                                        <th scope="col" class="px-6 py-3">Description</th>
+                                        <th scope="col" class="px-6 py-3">Remediation</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vulnerabilities-table-body">
+                                    <!-- Vulnerability data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="hidden p-4 rounded-lg light:card-bg dark:card-bg" id="emails-content" role="tabpanel" aria-labelledby="emails-tab">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3">Email</th>
+                                        <th scope="col" class="px-6 py-3">Source</th>
+                                        <th scope="col" class="px-6 py-3">Position/Role</th>
+                                        <th scope="col" class="px-6 py-3">Breach Status</th>
+                                        <th scope="col" class="px-6 py-3">Social Media</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="emails-table-body">
+                                    <!-- Email data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="hidden p-4 rounded-lg light:card-bg dark:card-bg" id="technologies-content" role="tabpanel" aria-labelledby="technologies-tab">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3">Technology</th>
+                                        <th scope="col" class="px-6 py-3">Version</th>
+                                        <th scope="col" class="px-6 py-3">Category</th>
+                                        <th scope="col" class="px-6 py-3">Host</th>
+                                        <th scope="col" class="px-6 py-3">Known CVEs</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="technologies-table-body">
+                                    <!-- Technology data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flowbite JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.js"></script>
+    
+    <!-- Font Awesome JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const startScanBtn = document.getElementById('start-scan-btn');
+            const stopScanBtn = document.getElementById('stop-scan-btn');
+            const clearTerminalBtn = document.getElementById('clear-terminal-btn');
+            const exportResultsBtn = document.getElementById('export-results-btn');
+            const showMapBtn = document.getElementById('show-map-btn');
+            const generateReportBtn = document.getElementById('generate-report-btn');
+            const terminalContent = document.getElementById('terminal-content');
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const progressPercentage = document.getElementById('progress-percentage');
+            const currentModule = document.getElementById('current-module');
+            const resultsSection = document.getElementById('results-section');
+            const attackSurfaceMap = document.getElementById('attack-surface-map');
+            const mapContainer = document.getElementById('map-container');
+
+            const targetDomainInput = document.getElementById('target-domain');
+            const scanDepthSelect = document.getElementById('scan-depth');
+            const scanModeSelect = document.getElementById('scan-mode');
+            const moduleCards = document.querySelectorAll('.module-card');
+
+            const supportLink = document.getElementById('support-link');
+            const githubLink = document.getElementById('github-link');
+
+            // Scan state variables
+            let scanActive = false;
+            let scanProgress = 0;
+            let scanInterval;
+            let currentModuleName = '';
+            let scanCancelled = false;
+
+            // Support and GitHub links
+            supportLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                alert("This would link to your Buy Me a Coffee page.");
+            });
+
+            githubLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                alert("This would link to your GitHub repository.");
+            });
+
+            // Terminal functions
+            function appendToTerminal(text, type = 'info') {
+                let prefix = '';
+                
+                switch(type) {
+                    case 'info':
+                        prefix = '[*] ';
+                        break;
+                    case 'success':
+                        prefix = '[+] ';
+                        break;
+                    case 'error':
+                        prefix = '[-] ';
+                        break;
+                    case 'warning':
+                        prefix = '[!] ';
+                        break;
+                    case 'command':
+                        prefix = '$ ';
+                        break;
+                    default:
+                        prefix = '';
+                }
+                
+                terminalContent.innerHTML += '\n' + prefix + text;
+                terminalContent.parentElement.scrollTop = terminalContent.parentElement.scrollHeight;
+            }
+
+            function clearTerminal() {
+                terminalContent.innerHTML = 'CyberReconX v1.0.3 - Ultimate OSINT Reconnaissance & Attack Surface Mapping Toolkit\n----------------------------------------------------------------------------------';
+                appendToTerminal('Terminal cleared');
+            }
+
+            // Progress bar functions
+            function updateProgress(percent, module) {
+                if (scanCancelled) return;
+                
+                scanProgress = percent;
+                progressBar.style.width = percent + '%';
+                progressPercentage.textContent = percent + '%';
+                currentModule.textContent = module;
+                currentModuleName = module;
+            }
+
+            function resetProgress() {
+                scanProgress = 0;
+                progressBar.style.width = '0%';
+                progressPercentage.textContent = '0%';
+                currentModule.textContent = 'Initializing scan...';
+                progressContainer.classList.add('hidden');
+            }
+
+            // Scan functions
+            async function startScan() {
+                const targetDomain = targetDomainInput.value.trim();
+                if (!targetDomain) {
+                    appendToTerminal('Please enter a target domain or IP address', 'error');
+                    return;
+                }
+
+                scanActive = true;
+                scanCancelled = false;
+                startScanBtn.classList.add('hidden');
+                stopScanBtn.classList.remove('hidden');
+                progressContainer.classList.remove('hidden');
+                
+                // Log scan information
+                appendToTerminal(`Starting reconnaissance on target: ${targetDomain}`, 'info');
+                appendToTerminal(`Scan depth: ${scanDepthSelect.options[scanDepthSelect.selectedIndex].text}`, 'info');
+                appendToTerminal(`Scan mode: ${scanModeSelect.options[scanModeSelect.selectedIndex].text}`, 'info');
+                
+                // Simulate modules scanning
+                await runOsintModule(targetDomain);
+                if (scanCancelled) return;
+                
+                await runSubdomainModule(targetDomain);
+                if (scanCancelled) return;
+                
+                await runDarkWebModule(targetDomain);
+                if (scanCancelled) return;
+                
+                await runUsernameModule(targetDomain);
+                if (scanCancelled) return;
+                
+                await runPortScanModule(targetDomain);
+                if (scanCancelled) return;
+                
+                await runPhishingModule(targetDomain);
+                if (scanCancelled) return;
+                
+                // Complete the scan
+                if (!scanCancelled) {
+                    completeScan();
+                }
+            }
+
+            function stopScan() {
+                scanCancelled = true;
+                scanActive = false;
+                clearInterval(scanInterval);
+                
+                appendToTerminal('Scan cancelled by user', 'warning');
+                startScanBtn.classList.remove('hidden');
+                stopScanBtn.classList.add('hidden');
+                resetProgress();
+            }
+
+            function completeScan() {
+                scanActive = false;
+                updateProgress(100, 'Scan complete');
+                
+                appendToTerminal('Reconnaissance scan completed successfully', 'success');
+                appendToTerminal('Generating attack surface map and vulnerability report', 'info');
+                
+                setTimeout(() => {
+                    startScanBtn.classList.remove('hidden');
+                    stopScanBtn.classList.add('hidden');
+                    
+                    // Show results section
+                    resultsSection.style.display = 'block';
+                    
+                    // Populate results tables
+                    populateResultsTables();
+                    
+                    appendToTerminal('Results ready. You can now view the attack surface map and generate reports.', 'success');
+                }, 1500);
+            }
+
+            // Module simulation functions
+            async function runOsintModule(target) {
+                updateProgress(5, 'Running OSINT Collection');
+                appendToTerminal(`Starting OSINT Collection for ${target}`, 'command');
+                
+                await simulateProgress(5, 20, 'Running OSINT Collection - Gathering WHOIS data');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Retrieved WHOIS information', 'success');
+                appendToTerminal(`Registrar: NOMINET UK`, 'info');
+                appendToTerminal(`Creation Date: 2005-08-15`, 'info');
+                
+                await simulateProgress(20, 35, 'Running OSINT Collection - Checking DNS records');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Retrieved DNS records', 'success');
+                const dnsRecords = ['A', 'MX', 'NS', 'TXT', 'CNAME'];
+                dnsRecords.forEach(record => {
+                    appendToTerminal(`Found ${record} records`, 'info');
+                });
+                
+                await simulateProgress(35, 50, 'Running OSINT Collection - Searching breach databases');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Found 3 data breaches containing domain email addresses', 'warning');
+                appendToTerminal('Gathering social media profiles', 'info');
+                
+                await simulateProgress(50, 60, 'Running OSINT Collection - Crawling social platforms');
+                if (scanCancelled) return;
+                
+                appendToTerminal('OSINT Collection module completed', 'success');
+                appendToTerminal(`Found 15 email addresses, 7 usernames, 3 data breaches`, 'info');
+            }
+
+            async function runSubdomainModule(target) {
+                updateProgress(60, 'Running Subdomain Enumeration');
+                appendToTerminal(`Starting Subdomain Enumeration for ${target}`, 'command');
+                
+                await simulateProgress(60, 70, 'Searching certificate transparency logs');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Found 12 subdomains in certificate transparency logs', 'success');
+                
+                await simulateProgress(70, 75, 'Brute forcing common subdomain names');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Discovered 8 additional subdomains through brute force', 'success');
+                
+                await simulateProgress(75, 80, 'Verifying subdomain status and availability');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Subdomain Enumeration module completed', 'success');
+                appendToTerminal(`Total subdomains discovered: 20`, 'info');
+            }
+
+            async function runDarkWebModule(target) {
+                updateProgress(80, 'Running Dark Web Lookup');
+                appendToTerminal(`Starting Dark Web Lookup for ${target}`, 'command');
+                
+                await simulateProgress(80, 85, 'Searching dark web marketplaces and forums');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Found references to target domain in 2 dark web forums', 'warning');
+                
+                await simulateProgress(85, 88, 'Analyzing leak databases');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Dark Web Lookup module completed', 'success');
+                appendToTerminal(`Found 3 mentions in dark web sources`, 'info');
+            }
+
+            async function runUsernameModule(target) {
+                updateProgress(88, 'Running Username Enumeration');
+                appendToTerminal(`Starting Username Enumeration for ${target}`, 'command');
+                
+                await simulateProgress(88, 92, 'Cross-referencing usernames across platforms');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Found 7 employee usernames across social media', 'success');
+                
+                await simulateProgress(92, 94, 'Analyzing username patterns');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Username Enumeration module completed', 'success');
+                appendToTerminal(`Found accounts on 12 different platforms`, 'info');
+            }
+
+            async function runPortScanModule(target) {
+                updateProgress(94, 'Running Port Scanning');
+                appendToTerminal(`Starting Port Scanning for ${target}`, 'command');
+                
+                await simulateProgress(94, 96, 'Scanning common TCP ports');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Detected open ports: 22, 80, 443, 8080', 'success');
+                
+                await simulateProgress(96, 98, 'Identifying services on open ports');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Port Scanning module completed', 'success');
+                appendToTerminal(`Found 4 open ports with running services`, 'info');
+            }
+
+            async function runPhishingModule(target) {
+                updateProgress(98, 'Running Phishing Analysis');
+                appendToTerminal(`Starting Phishing Analysis for ${target}`, 'command');
+                
+                await simulateProgress(98, 99, 'Analyzing potential phishing vectors');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Identified 3 potential phishing vectors', 'warning');
+                
+                await simulateProgress(99, 100, 'Generating phishing risk report');
+                if (scanCancelled) return;
+                
+                appendToTerminal('Phishing Analysis module completed', 'success');
+                appendToTerminal(`Overall phishing risk: Medium`, 'warning');
+            }
+
+            // Utility functions
+            async function simulateProgress(start, end, moduleText) {
+                return new Promise((resolve) => {
+                    let current = start;
+                    scanInterval = setInterval(() => {
+                        current += 0.5;
+                        updateProgress(Math.min(current, end), moduleText);
+                        
+                        if (current >= end || scanCancelled) {
+                            clearInterval(scanInterval);
+                            resolve();
+                        }
+                    }, 50);
+                });
+            }
+
+            // Results population
+            function populateResultsTables() {
+                // Populate Domains table
+                const domainsTableBody = document.getElementById('domains-table-body');
+                domainsTableBody.innerHTML = '';
+                
+                const domains = [
+                    { subdomain: 'main.example.com', ip: '192.168.1.1', status: 'Active', ports: '80, 443', tech: 'Nginx, PHP' },
+                    { subdomain: 'api.example.com', ip: '192.168.1.2', status: 'Active', ports: '443, 8080', tech: 'Node.js, Express' },
+                    { subdomain: 'admin.example.com', ip: '192.168.1.3', status: 'Active', ports: '443', tech: 'React, Redux' },
+                    { subdomain: 'mail.example.com', ip: '192.168.1.4', status: 'Active', ports: '25, 587, 993', tech: 'Exchange' },
+                    { subdomain: 'dev.example.com', ip: '192.168.1.5', status: 'Active', ports: '80, 443, 22', tech: 'Apache, Python' },
+                    { subdomain: 'test.example.com', ip: '192.168.1.6', status: 'Inactive', ports: '80', tech: 'Unknown' },
+                    { subdomain: 'staging.example.com', ip: '192.168.1.7', status: 'Active', ports: '80, 443', tech: 'Nginx, Ruby' }
+                ];
+                
+                domains.forEach(domain => {
+                    const row = document.createElement('tr');
+                    row.className = 'bg-white border-b dark:bg-gray-800 dark:border-gray-700';
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4">${domain.subdomain}</td>
+                        <td class="px-6 py-4">${domain.ip}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-xs font-medium ${domain.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}">
+                                ${domain.status}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">${domain.ports}</td>
+                        <td class="px-6 py-4">${domain.tech}</td>
+                    `;
+                    
+                    domainsTableBody.appendChild(row);
+                });
+                
+                // Populate Vulnerabilities table
+                const vulnerabilitiesTableBody = document.getElementById('vulnerabilities-table-body');
+                vulnerabilitiesTableBody.innerHTML = '';
+                
+                const vulnerabilities = [
+                    { name: 'Outdated Apache Server', severity: 'High', asset: 'dev.example.com', description: 'Running Apache 2.2.15 with known vulnerabilities', remediation: 'Upgrade to Apache 2.4.x' },
+                    { name: 'Exposed Git Repository', severity: 'Medium', asset: 'main.example.com', description: '.git directory accessible via web', remediation: 'Block .git directory access in web server config' },
+                    { name: 'Weak TLS Configuration', severity: 'Medium', asset: 'api.example.com', description: 'Supporting TLS 1.0/1.1 and weak ciphers', remediation: 'Enforce TLS 1.2+ and strong ciphers only' },
+                    { name: 'Missing Security Headers', severity: 'Low', asset: 'Multiple assets', description: 'Missing X-Content-Type-Options, X-Frame-Options', remediation: 'Implement recommended security headers' }
+                ];
+                
+                vulnerabilities.forEach(vuln => {
+                    const row = document.createElement('tr');
+                    row.className = 'bg-white border-b dark:bg-gray-800 dark:border-gray-700';
+                    
+                    let severityClass = '';
+                    switch(vuln.severity) {
+                        case 'Critical':
+                            severityClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
+                            break;
+                        case 'High':
+                            severityClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                            break;
+                        case 'Medium':
+                            severityClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
+                            break;
+                        case 'Low':
+                            severityClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+                            break;
+                        default:
+                            severityClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+                    }
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 font-medium">${vuln.name}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-xs font-medium ${severityClass}">
+                                ${vuln.severity}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">${vuln.asset}</td>
+                        <td class="px-6 py-4">${vuln.description}</td>
+                        <td class="px-6 py-4">${vuln.remediation}</td>
+                    `;
+                    
+                    vulnerabilitiesTableBody.appendChild(row);
+                });
+                
+                // Populate Emails table
+                const emailsTableBody = document.getElementById('emails-table-body');
+                emailsTableBody.innerHTML = '';
+                
+                const emails = [
+                    { email: 'admin@example.com', source: 'WHOIS Record', role: 'Administrator', breach: 'Found in 2 breaches', social: 'LinkedIn, Twitter' },
+                    { email: 'john.doe@example.com', source: 'LinkedIn Profile', role: 'CTO', breach: 'Not breached', social: 'LinkedIn, GitHub' },
+                    { email: 'jane.smith@example.com', source: 'Company Website', role: 'Marketing Director', breach: 'Found in 1 breach', social: 'LinkedIn, Twitter, Instagram' },
+                    { email: 'support@example.com', source: 'Contact Page', role: 'Support Team', breach: 'Not breached', social: 'N/A' },
+                    { email: 'dev@example.com', source: 'GitHub Repository', role: 'Development Team', breach: 'Not breached', social: 'GitHub' }
+                ];
+                
+                emails.forEach(email => {
+                    const row = document.createElement('tr');
+                    row.className = 'bg-white border-b dark:bg-gray-800 dark:border-gray-700';
+                    
+                    const breachStatus = email.breach.includes('Not') ? 
+                        'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 
+                        'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 font-medium">${email.email}</td>
+                        <td class="px-6 py-4">${email.source}</td>
+                        <td class="px-6 py-4">${email.role}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-xs font-medium ${breachStatus}">
+                                ${email.breach}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">${email.social}</td>
+                    `;
+                    
+                    emailsTableBody.appendChild(row);
+                });
+                
+                // Populate Technologies table
+                const technologiesTableBody = document.getElementById('technologies-table-body');
+                technologiesTableBody.innerHTML = '';
+                
+                const technologies = [
+                    { tech: 'Nginx', version: '1.18.0', category: 'Web Server', host: 'main.example.com', cves: '0 (up to date)' },
+                    { tech: 'Apache', version: '2.2.15', category: 'Web Server', host: 'dev.example.com', cves: '12 (outdated)' },
+                    { tech: 'PHP', version: '7.2.24', category: 'Server-side Language', host: 'main.example.com', cves: '3 (outdated)' },
+                    { tech: 'MySQL', version: '5.7.32', category: 'Database', host: 'Multiple', cves: '1 (minor)' },
+                    { tech: 'WordPress', version: '5.7.2', category: 'CMS', host: 'blog.example.com', cves: '0 (up to date)' },
+                    { tech: 'Node.js', version: '14.17.0', category: 'Server Runtime', host: 'api.example.com', cves: '0 (up to date)' }
+                ];
+                
+                technologies.forEach(tech => {
+                    const row = document.createElement('tr');
+                    row.className = 'bg-white border-b dark:bg-gray-800 dark:border-gray-700';
+                    
+                    let cveClass = '';
+                    if (tech.cves.includes('up to date')) {
+                        cveClass = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+                    } else if (tech.cves.includes('minor')) {
+                        cveClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+                    } else {
+                        cveClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+                    }
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 font-medium">${tech.tech}</td>
+                        <td class="px-6 py-4">${tech.version}</td>
+                        <td class="px-6 py-4">${tech.category}</td>
+                        <td class="px-6 py-4">${tech.host}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-xs font-medium ${cveClass}">
+                                ${tech.cves}
+                            </span>
+                        </td>
+                    `;
+                    
+                    technologiesTableBody.appendChild(row);
+                });
+            }
+
+            // Create attack surface map
+            function createAttackSurfaceMap() {
+                mapContainer.innerHTML = '';
+                attackSurfaceMap.style.display = 'block';
+                
+                // Create nodes
+                const nodes = [
+                    { id: 'main', label: 'main', type: 'domain', x: 50, y: 50 },
+                    { id: 'api', label: 'api', type: 'domain', x: 30, y: 70 },
+                    { id: 'admin', label: 'admin', type: 'domain', x: 70, y: 70 },
+                    { id: 'mail', label: 'mail', type: 'domain', x: 20, y: 30 },
+                    { id: 'dev', label: 'dev', type: 'domain', x: 80, y: 30 },
+                    { id: 'http', label: '80', type: 'service', x: 40, y: 20 },
+                    { id: 'https', label: '443', type: 'service', x: 60, y: 20 },
+                    { id: 'ssh', label: '22', type: 'service', x: 80, y: 50 },
+                    { id: 'vuln1', label: '!', type: 'vulnerable', x: 25, y: 50 },
+                    { id: 'vuln2', label: '!', type: 'vulnerable', x: 75, y: 50 }
+                ];
+                
+                // Create connections
+                const connections = [
+                    { from: 'main', to: 'api' },
+                    { from: 'main', to: 'admin' },
+                    { from: 'main', to: 'http' },
+                    { from: 'main', to: 'https' },
+                    { from: 'api', to: 'https' },
+                    { from: 'admin', to: 'https' },
+                    { from: 'dev', to: 'ssh' },
+                    { from: 'dev', to: 'vuln1' },
+                    { from: 'admin', to: 'vuln2' },
+                    { from: 'mail', to: 'main' }
+                ];
+                
+                // Add connections first (so they appear behind nodes)
+                connections.forEach(conn => {
+                    const fromNode = nodes.find(n => n.id === conn.from);
+                    const toNode = nodes.find(n => n.id === conn.to);
+                    
+                    if (fromNode && toNode) {
+                        const line = createConnectionLine(
+                            fromNode.x, fromNode.y, 
+                            toNode.x, toNode.y
+                        );
+                        mapContainer.appendChild(line);
+                    }
+                });
+                
+                // Add nodes
+                nodes.forEach(node => {
+                    const nodeElement = createMapNode(node.label, node.type, node.x, node.y);
+                    mapContainer.appendChild(nodeElement);
+                });
+            }
+
+            function createMapNode(label, type, xPercent, yPercent) {
+                const node = document.createElement('div');
+                node.className = `map-node ${type}`;
+                node.style.left = `${xPercent}%`;
+                node.style.top = `${yPercent}%`;
+                node.textContent = label;
+                
+                node.addEventListener('click', function() {
+                    // Handle node click (could show details, etc.)
+                    const typeLabels = {
+                        'domain': 'Subdomain',
+                        'service': 'Service Port',
+                        'vulnerable': 'Vulnerability'
+                    };
+                    
+                    alert(`${typeLabels[type]}: ${label}.example.com\nClick for more details`);
+                });
+                
+                return node;
+            }
+
+            function createConnectionLine(x1Percent, y1Percent, x2Percent, y2Percent) {
+                const line = document.createElement('div');
+                line.className = 'map-line';
+                
+                const mapWidth = mapContainer.offsetWidth;
+                const mapHeight = mapContainer.offsetHeight;
+                
+                // Calculate node centers
+                const x1 = (x1Percent / 100) * mapWidth;
+                const y1 = (y1Percent / 100) * mapHeight;
+                const x2 = (x2Percent / 100) * mapWidth;
+                const y2 = (y2Percent / 100) * mapHeight;
+                
+                // Calculate line properties
+                const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+                
+                // Position the line
+                line.style.width = `${length}px`;
+                line.style.left = `${x1}px`;
+                line.style.top = `${y1}px`;
+                line.style.transform = `rotate(${angle}deg)`;
+                line.style.height = '2px';
+                
+                return line;
+            }
+
+            // Event Listeners
+            startScanBtn.addEventListener('click', startScan);
+            stopScanBtn.addEventListener('click', stopScan);
+            clearTerminalBtn.addEventListener('click', clearTerminal);
+            
+            showMapBtn.addEventListener('click', function() {
+                createAttackSurfaceMap();
+            });
+            
+            exportResultsBtn.addEventListener('click', function() {
+                appendToTerminal('Exporting results to JSON format...', 'info');
+                setTimeout(() => {
+                    appendToTerminal('Results exported. In a real implementation, this would save to a file.', 'success');
+                }, 1000);
+            });
+            
+            generateReportBtn.addEventListener('click', function() {
+                appendToTerminal('Generating comprehensive security report...', 'info');
+                setTimeout(() => {
+                    appendToTerminal('Report generated. In a real implementation, this would create a PDF.', 'success');
+                }, 1500);
+            });
+            
+            moduleCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const module = this.getAttribute('data-module');
+                    appendToTerminal(`Module selected: ${module}`, 'info');
+                });
+            });
+
+            // Initialize tabs
+            const tabElements = [
+                { id: 'domains-tab', target: document.getElementById('domains-content') },
+                { id: 'vulnerabilities-tab', target: document.getElementById('vulnerabilities-content') },
+                { id: 'emails-tab', target: document.getElementById('emails-content') },
+                { id: 'technologies-tab', target: document.getElementById('technologies-content') }
+            ];
+
+            tabElements.forEach(tab => {
+                const tabButton = document.getElementById(tab.id);
+                tabButton.addEventListener('click', function() {
+                    // Hide all tab contents
+                    tabElements.forEach(t => {
+                        t.target.classList.add('hidden');
+                        document.getElementById(t.id).classList.remove('border-[#5D5CDE]');
+                        document.getElementById(t.id).classList.add('border-transparent');
+                    });
+                    
+                    // Show selected tab
+                    tab.target.classList.remove('hidden');
+                    this.classList.remove('border-transparent');
+                    this.classList.add('border-[#5D5CDE]');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
