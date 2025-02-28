@@ -3,7 +3,7 @@
 ## Ultimate OSINT Reconnaissance & Attack Surface Mapping Toolkit
 
 <div align="center">
-    <img src="https://i.ibb.co/WNLyXhwN/Screenshot-2025-02-27-174235.png" alt="CyberReconX Dashboard Screenshot" width="800" />
+    <img src="https://i.ibb.co/PGKRLfw8/Screenshot-2025-02-27-190329.png" alt="CyberReconX Dashboard Screenshot" width="800" />
 </div>
 
 CyberReconX is a powerful open-source intelligence (OSINT) reconnaissance and attack surface mapping framework designed for ethical hackers, red teamers, penetration testers, and cybersecurity professionals.
