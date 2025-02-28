@@ -503,13 +503,13 @@ CyberReconX v1.0.3 - Ultimate OSINT Reconnaissance & Attack Surface Mapping Tool
 
             // Support and GitHub links
             supportLink.addEventListener('click', function(e) {
-                e.preventDefault();
-                alert("This would link to your Buy Me a Coffee page.");
+                e.preventDefault(); // Prevent the default anchor click behavior
+                window.location.href = 'https://your-support-link'; // Replace with actual link
             });
 
             githubLink.addEventListener('click', function(e) {
-                e.preventDefault();
-                alert("This would link to your GitHub repository.");
+                e.preventDefault(); // Prevent the default anchor click behavior
+                window.location.href = 'https://github.com/your-repo'; // Replace with actual link
             });
 
             // Terminal functions
